@@ -7,6 +7,7 @@ export type NotesContextType = {
   addNote: (value: NoteType) => Promise<void>,
   deleteNote: () => void,
   editNote: () => void,
+  notesRef: React.RefObject<{ [id: number]: (React.RefObject<HTMLDivElement> | null)}>
 }
 const defaultContextState = {
   key: 1,
@@ -16,16 +17,19 @@ export type NoteType = {
   id: number,
   value: string,
   timestamp: number,
-  title: string
+  title: string,
+  position: number[]
 }
 export const NotesContext = React.createContext<NotesContextType | undefined>(undefined)
 
 export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => {
   const [notes, setNotes] = React.useState<NoteType[]>(defaultContextState.notes)
   const {isConnected, putEntry, getEntry} = useIndexedDB('drawboard-db', ["notes", "settings", "notePositions"]);
+  const notesRef = React.useRef<{ [id: number]: React.RefObject<HTMLDivElement> }>({});
 
 
   const addNote = async (value: NoteType) => {
+    value = {...value, position: getRandomPosition()};
     await putEntry('notes', {id: 1, notes: [...notes, value]});
     setNotes([...notes, value]);
   }
@@ -58,7 +62,8 @@ export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => 
     setNotes: setNotes,
     addNote: addNote,
     deleteNote: deleteNote,
-    editNote: editNote
+    editNote: editNote,
+    notesRef: notesRef
   }
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>
 }
@@ -69,4 +74,14 @@ export const useNotes = () => {
     throw new Error('useNotes must be used within a NotesProvider');
   }
   return context;
+}
+
+const getRandomPosition = () => {
+  const drawboardDimensions = document.getElementById("drawboard")?.getBoundingClientRect();
+  if(drawboardDimensions) {
+    const maxX = drawboardDimensions.width;
+    const maxY = drawboardDimensions.height;
+    return [Math.floor(Math.random() * maxX), Math.floor(Math.random()*maxY)];
+  }
+  throw new Error("drawboard is not available")
 }
