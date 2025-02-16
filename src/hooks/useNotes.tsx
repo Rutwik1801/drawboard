@@ -1,5 +1,6 @@
 import React, { useContext, useEffect } from "react"
 import { useIndexedDB } from "../indexedDB/useIndexedDB"
+import { useBroadcastChannel } from "./useBroadcastChannel"
 
 export type NotesContextType = {
   notes: NoteType[] | null,
@@ -27,12 +28,13 @@ export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => 
   const [notes, setNotes] = React.useState<NoteType[]>(defaultContextState.notes)
   const {isConnected, putEntry, getEntry} = useIndexedDB('drawboard-db', ["notes", "settings", "notePositions"]);
   const notesRef = React.useRef<{ [id: number]: React.RefObject<HTMLDivElement> }>({});
-
+  const {message, sendMessage} = useBroadcastChannel("notes");
 
   const addNote = async (value: NoteType) => {
     value = {...value, position: getRandomPosition()};
     await putEntry('notes', {id: 1, notes: [...notes, value]});
     setNotes([...notes, value]);
+    sendMessage([...notes, value])
   }
   const deleteNote = () => {
 
@@ -75,6 +77,7 @@ export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => 
     try {
       await putEntry('notes', {id: 1, notes: updatedNotes})
       setNotes(updatedNotes);
+      sendMessage(updatedNotes)
     } catch(err) {
       console.error(err, "error updating db");
     }
@@ -96,6 +99,11 @@ export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => 
       initDB()
     }
   },[isConnected])
+  useEffect(() => {
+    if(message) {
+      setNotes(message)
+    }
+  }, [message])
 
   const value = {
     notes: notes,
