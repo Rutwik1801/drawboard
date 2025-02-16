@@ -7,7 +7,8 @@ export type NotesContextType = {
   addNote: (value: NoteType) => Promise<void>,
   deleteNote: () => void,
   editNote: () => void,
-  notesRef: React.RefObject<{ [id: number]: (React.RefObject<HTMLDivElement> | null)}>
+  handleNoteDrag: (note: NoteType, e: React.MouseEvent) => void,
+  notesRef: React.RefObject<{ [id: number]: (React.RefObject<HTMLDivElement> | null)}> | null
 }
 const defaultContextState = {
   key: 1,
@@ -39,6 +40,45 @@ export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => 
   const editNote = () => {
     
   }
+  const handleNoteDrag = async (note: NoteType, e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent default drag behavior
+
+    const noteRef = notesRef.current[note.id]?.current;
+    if (!noteRef) return;
+
+    const notePosition = noteRef.getBoundingClientRect();
+    const offsetX = e.clientX - notePosition.left;
+    const offsetY = e.clientY - notePosition.top;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const x = moveEvent.clientX - offsetX;
+      const y = moveEvent.clientY - offsetY;
+      noteRef.style.left = `${x}px`;
+      noteRef.style.top = `${y}px`;
+    };
+
+    const handleMouseUp = async () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+
+      const finalRect = noteRef.getBoundingClientRect();
+      const finalPos: [number, number] = [finalRect.left, finalRect.top];
+
+      await updateNotePosition(note.id, finalPos);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+  const updateNotePosition = async (id: number, position: [number, number]) => {
+    const updatedNotes = notes.map((note) => note.id === id ? { ...note, position } : note);
+    try {
+      await putEntry('notes', {id: 1, notes: updatedNotes})
+      setNotes(updatedNotes);
+    } catch(err) {
+      console.error(err, "error updating db");
+    }
+  };
 
   useEffect(() => {
     const initDB = async () => {
@@ -63,6 +103,7 @@ export const NotesProvider: React.FC<React.PropsWithChildren> = ({children}) => 
     addNote: addNote,
     deleteNote: deleteNote,
     editNote: editNote,
+    handleNoteDrag: handleNoteDrag,
     notesRef: notesRef
   }
   return <NotesContext.Provider value={value}>{children}</NotesContext.Provider>
